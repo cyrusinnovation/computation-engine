@@ -15,11 +15,7 @@ allprojects {
 
     repositories {
 		mavenLocal()
-		mavenCentral()
-		maven {
-			name = 'sonatype-releases'
-			url = "https://oss.sonatype.org/content/repositories/releases"
-		}
+        mavenCentral()
     }
 
 	tasks.withType(ScalaCompile) {
@@ -37,155 +33,13 @@ allprojects {
 
 subprojects {
     apply plugin: 'scala'
-    apply plugin: 'signing'
-    apply plugin: 'maven-publish'
 
     version = projectVersion
     group = artifactGroup
 
-    publishToMavenLocal.dependsOn test
-
     test {
         jvmArgs '-XX:MaxPermSize=512m'
         systemProperties = System.getProperties()
-    }
-
-    def manifestAttributes = [
-        'Implementation-Version': version,
-        'Implementation-Vendor': artifactGroup
-    ]
-
-    jar {
-        manifest {
-            attributes( manifestAttributes )
-        }
-    }
-
-    task sourceJar(type: Jar) {
-        from sourceSets.main.allScala
-        classifier 'sources'
-        manifest {
-            attributes( manifestAttributes )
-        }
-    }
-
-    scaladoc.destinationDir = file("$projectDir/doc")
-
-    task scaladocJar(type: Jar, dependsOn: scaladoc) {
-        from scaladoc.destinationDir
-        classifier 'javadoc'
-        manifest {
-            attributes( manifestAttributes )
-        }
-    }
-
-    ext {
-        localStagingDir = "$buildDir/staging"
-        localStagingArtifactsDir = localStagingDir + "/" + group.replace('.', '/') + "/" + publishedArtifactId  + "/" + version
-        pomFilePath = "$localStagingArtifactsDir/$publishedArtifactId-${version}.pom"
-    }
-
-    // These tasks are archive tasks that create an empty jar file to server as a bogus signature file
-    // so that the publish tasks don't fail because a signature doesn't exist yet. They will be overwritten
-    // when the jars are actually signed. [If the "publish" task is run rather than publishCodePublicationToSonatypeRepository
-    // then these will be executed after the signatures are uploaded, and overwrite them in the staging area.
-    // This seems harmless but isn't a very pretty side effect.
-    task initJarSignature(type: Jar, dependsOn: jar) {
-        destinationDir = file(localStagingArtifactsDir)
-        baseName = publishedArtifactId
-        appendix = ''
-        classifier = null
-        extension = 'jar.asc'
-    }
-    task initSourceJarSignature(type: Jar, dependsOn: sourceJar) {
-        destinationDir = file(localStagingArtifactsDir)
-        baseName = publishedArtifactId
-        appendix = ''
-        classifier = 'sources'
-        extension = 'jar.asc'
-    }
-    task initScaladocJarSignature(type: Jar, dependsOn: scaladocJar) {
-        destinationDir = file(localStagingArtifactsDir)
-        baseName = publishedArtifactId
-        appendix = ''
-        classifier = 'javadoc'
-        extension = 'jar.asc'
-    }
-    task initPomSignature(type: Jar) {
-        destinationDir = file(localStagingArtifactsDir)
-        baseName = publishedArtifactId
-        appendix = ''
-        classifier = null
-        extension = 'pom.asc'
-    }
-
-    //Signature info should go in user gradle.properties file ( ~/.gradle/gradle.properties)
-    task signArtifacts << {
-        file(project.ext.localStagingArtifactsDir).listFiles(new sun.misc.JarFilter()).each {
-            File f ->
-                println("Signing file ${f.getAbsolutePath()}")
-                signing.sign(f)
-        }
-        println("Signing file ${pomFilePath}")
-        signing.sign(file(pomFilePath))
-    }
-
-    gradle.taskGraph.whenReady {taskGraph ->
-        gradle.taskGraph.beforeTask { task ->
-            if (task == tasks.publishCodePublicationToSonatypeRepository) {
-                publishCodePublicationToInternalRepository.execute()
-                signArtifacts.execute()
-                publishJarSignaturesPublicationToSonatypeRepository.execute()
-                publishPomSignaturePublicationToSonatypeRepository.execute()
-            }
-        }
-    }
-
-    publishing {
-        //Sonatype username and password should go in user gradle.properties file ( ~/.gradle/gradle.properties)
-        repositories {
-            maven {
-                name 'sonatype'
-                url 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
-                credentials {
-                    username = sonatypeUsername
-                    password = sonatypePassword
-                }
-
-// For testing
-//                url "$buildDir/repo"
-            }
-            maven {
-                name 'internal'
-                url "${project.ext.localStagingDir}"
-            }
-        }
-
-        publications {
-            //When the publish task is called, the publications are published in alphabetical order (and
-            //the target repositories are also pushed to in alphabetical order). So naming is unfortunately
-            //important.
-            code(MavenPublication) {
-                from components.java
-                artifact scaladocJar
-                artifact sourceJar
-            }
-
-            // Gradle disallows having multiple publish artifacts with a null classifier; the classifier is
-            // automatically inserted between the artifact name and the extension. As a result, we have to
-            // deal with the jars and the pom as separate publications.
-            jarSignatures(MavenPublication) {
-                artifact initJarSignature
-                artifact initSourceJarSignature
-                artifact initScaladocJarSignature
-            }
-            pomSignature(MavenPublication) {
-                artifact initPomSignature {
-                    classifier = null
-                    extension = 'pom.asc'
-                }
-            }
-        }
     }
 }
 

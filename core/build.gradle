@@ -5,60 +5,11 @@
 dependencies {
     compile "org.scala-lang:scala-compiler:$scalaVersion"
     compile "org.scala-lang:scala-library:$scalaVersion"
-    compile "com.googlecode.scalascriptengine:scalascriptengine:1.3.7-$scalaVersion"
 
     testCompile 'junit:junit:4.11'
     testCompile 'org.scalatest:scalatest_2.10:2.0'
     testCompile 'org.scalamock:scalamock-scalatest-support_2.10:3.1.RC1'
     testCompile 'org.scalacheck:scalacheck_2.10:1.11.1'
-}
 
-scaladoc.excludes = ['**com/cyrusinnovation/computation/EvalCode.scala', '**com/cyrusinnovation/computation/util/Logger.scala']
-scaladoc.title = 'Computation Engine Core API, version ' + version
-
-def pomConfig = {
-    packaging 'jar'
-    name 'Computation Engine core module'
-    url 'https://github.com/cyrusinnovation/computation-engine'
-    licenses {
-        license([:]) {
-            name 'The Apache Software License, Version 2.0'
-            url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-            distribution 'repo'
-        }
-    }
-    scm {
-        url 'https://github.com/cyrusinnovation/computation-engine.git'
-        connection 'scm:git:git://github.com/cyrusinnovation/computation-engine.git'
-        developerConnection 'scm:git:git@github.com:cyrusinnovation/computation-engine.git'
-    }
-    developers {
-        developer {
-            id 'psfblair'
-            name 'Paul Blair'
-            roles {
-                role 'Project Founder'
-            }
-        }
-   }
-}
-
-publishing {
-    publications {
-        code(MavenPublication) {
-            artifactId = project.publishedArtifactId
-
-            pom.withXml {
-                //Somehow the description node can't go in the pomConfig.
-                asNode().appendNode('description', 'A Scala library for evaluating sequences of computations ' +
-                        'written as Scala strings, on domains of arbitrary facts.') + pomConfig
-            }
-        }
-        jarSignatures(MavenPublication) {
-           artifactId = project.publishedArtifactId
-        }
-        pomSignature(MavenPublication) {
-            artifactId = project.publishedArtifactId
-        }
-    }
+    testCompile 'com.cyrusinnovation.computation-engine:computation-engine-core:1.0'
 }

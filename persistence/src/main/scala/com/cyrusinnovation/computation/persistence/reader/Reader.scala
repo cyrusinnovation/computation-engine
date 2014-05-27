@@ -27,11 +27,12 @@ trait PersistentTextBearingNode extends PersistentNode {
 }
 
 trait Reader {
+  private type NodeContext = Map[String, String]
   val rootNode : PersistentNode
 
   def unmarshal: Library = unmarshal(rootNode, Map.empty[String, String]).asInstanceOf[Library]
 
-  def unmarshal(node: PersistentNode, nodeContext: Map[String, String]): SyntaxTreeNode = node.label match {
+  def unmarshal(node: PersistentNode, nodeContext: NodeContext): SyntaxTreeNode = node.label match {
     case "library" => Library(attr(node, "name", nodeContext), versionMap(node, nodeContext))
     case "version" => version(node, nodeContext)
     case "simpleComputation" => simpleComputationFactory(node, nodeContext)
@@ -60,12 +61,12 @@ trait Reader {
     case "securityConfiguration" => throw new RuntimeException("securityConfiguration node should not be unmarshaled to AstNode")
   }
 
-  def unmarshalChildren(node: PersistentNode, label: String, nodeContext: Map[String, String]): SyntaxTreeNode = label match {
+  def unmarshalChildren(node: PersistentNode, label: String, nodeContext: NodeContext): SyntaxTreeNode = label match {
     case "imports" => imports(children(node, label), nodeContext)
     case "inputs"  => inputs(children(node, label), nodeContext)
   }
 
-  def versionMap(node: PersistentNode, nodeContext: Map[String, String]) : Map[String, Version] = {
+  def versionMap(node: PersistentNode, nodeContext: NodeContext) : Map[String, Version] = {
     val versions = children(node, "version")
     versions.foldLeft(Map[String,Version]()) {
       (mapSoFar, versionNode) => {
@@ -75,7 +76,7 @@ trait Reader {
     }
   }
 
-  def version(versionNode: PersistentNode, nodeContext: Map[String, String]) : Version = {
+  def version(versionNode: PersistentNode, nodeContext: NodeContext) : Version = {
     val defaults = children(versionNode).find(_.label == "defaults").fold(Map.empty[String, String])(attrValues)
     val topLevelComputations = children(versionNode).filterNot(_.label == "defaults")
     Version(attr(versionNode, "versionNumber", nodeContext),
@@ -91,7 +92,7 @@ trait Reader {
     VersionState.fromString(stateString)
   }
 
-  protected def simpleComputationFactory(node: PersistentNode, nodeContext: Map[String, String]) : SimpleComputationSpecification = {
+  protected def simpleComputationFactory(node: PersistentNode, nodeContext: NodeContext) : SimpleComputationSpecification = {
     SimpleComputationSpecification(
       attr(node, "package", nodeContext),
       attr(node, "name", nodeContext),
@@ -107,7 +108,7 @@ trait Reader {
     )
   }
 
-  protected def abortIfComputationFactory(node: PersistentNode, nodeContext: Map[String, String]) : AbortIfComputationSpecification = {
+  protected def abortIfComputationFactory(node: PersistentNode, nodeContext: NodeContext) : AbortIfComputationSpecification = {
     AbortIfComputationSpecification(
       attr(node, "package", nodeContext),
       attr(node, "name", nodeContext),
@@ -115,7 +116,7 @@ trait Reader {
       attr(node, "changedInVersion", nodeContext),
       attr(node, "shouldPropagateExceptions", nodeContext).toBoolean,
       attr(node, "predicateExpression", nodeContext),
-      extractInnerComputationFrom(childOfType(node, "innerComputation"), nodeContext: Map[String, String]),
+      extractInnerComputationFrom(childOfType(node, "innerComputation"), nodeContext: NodeContext),
       unmarshalChildren(node, "imports", nodeContext).asInstanceOf[Imports],
       unmarshalChildren(node, "inputs", nodeContext).asInstanceOf[Inputs],
       attr(node, "logger", nodeContext),
@@ -123,7 +124,7 @@ trait Reader {
     )
   }
 
-  protected def namedComputation(node: PersistentNode, nodeContext: Map[String, String]): NamedComputationSpecification = {
+  protected def namedComputation(node: PersistentNode, nodeContext: NodeContext): NamedComputationSpecification = {
     NamedComputationSpecification(
       attr(node, "package", nodeContext),
       attr(node, "name", nodeContext),
@@ -133,19 +134,19 @@ trait Reader {
     )
   }
 
-  protected def abortIfNoResultsComputation(node: PersistentNode, nodeContext: Map[String, String]) : AbortIfNoResultsComputationSpecification = {
+  protected def abortIfNoResultsComputation(node: PersistentNode, nodeContext: NodeContext) : AbortIfNoResultsComputationSpecification = {
     AbortIfNoResultsComputationSpecification(
       extractInnerComputationFrom(childOfType(node, "innerComputation"), nodeContext)
     )
   }
 
-  protected def abortIfHasResultsComputation(node: PersistentNode, nodeContext: Map[String, String]) : AbortIfHasResultsComputationSpecification = {
+  protected def abortIfHasResultsComputation(node: PersistentNode, nodeContext: NodeContext) : AbortIfHasResultsComputationSpecification = {
     AbortIfHasResultsComputationSpecification(
       extractInnerComputationFrom(childOfType(node, "innerComputation"), nodeContext)
     )
   }
 
-  protected def mappingComputation(node: PersistentNode, nodeContext: Map[String, String]): MappingComputationSpecification = {
+  protected def mappingComputation(node: PersistentNode, nodeContext: NodeContext): MappingComputationSpecification = {
     MappingComputationSpecification(
       extractInnerComputationFrom(childOfType(node, "innerComputation"), nodeContext),
       unmarshal(childOfType(node, "inputTuple"),nodeContext).asInstanceOf[Mapping],
@@ -153,7 +154,7 @@ trait Reader {
     )
   }
 
-  protected def iterativeComputation(node: PersistentNode,nodeContext: Map[String, String]) : IterativeComputationSpecification = {
+  protected def iterativeComputation(node: PersistentNode,nodeContext: NodeContext) : IterativeComputationSpecification = {
     IterativeComputationSpecification(
       extractInnerComputationFrom(childOfType(node, "innerComputation"), nodeContext),
       unmarshal(childOfType(node, "inputTuple"), nodeContext).asInstanceOf[Mapping],
@@ -161,7 +162,7 @@ trait Reader {
     )
   }
 
-  protected def foldingComputation(node: PersistentNode,nodeContext: Map[String, String]) : FoldingComputationSpecification = {
+  protected def foldingComputation(node: PersistentNode,nodeContext: NodeContext) : FoldingComputationSpecification = {
     FoldingComputationSpecification(
       extractInnerComputationFrom(childOfType(node, "innerComputation"), nodeContext),
       attr(node, "initialAccumulatorKey", nodeContext),
@@ -170,7 +171,7 @@ trait Reader {
     )
   }
 
-  protected def sequentialComputation(node: PersistentNode, nodeContext: Map[String, String]) : SequentialComputationSpecification = {
+  protected def sequentialComputation(node: PersistentNode, nodeContext: NodeContext) : SequentialComputationSpecification = {
     val innerComputations = children(node, "innerComputations").map(x => extractInnerComputationFrom(x, nodeContext))
 
     SequentialComputationSpecification (
@@ -179,39 +180,39 @@ trait Reader {
     )
   }
 
-  protected def reference(node: PersistentNode, nodeContext: Map[String, String]) : Ref = {
+  protected def reference(node: PersistentNode, nodeContext: NodeContext) : Ref = {
     new Ref(unmarshalToString(node))
   }
 
-  protected def imports(nodes: List[PersistentNode], nodeContext: Map[String, String]): Imports = {
+  protected def imports(nodes: List[PersistentNode], nodeContext: NodeContext): Imports = {
     Imports(nodes.map(unmarshalToString).toList: _*)
   }
 
-  protected def inputs(nodes: List[PersistentNode], nodeContext: Map[String, String]): Inputs = {
+  protected def inputs(nodes: List[PersistentNode], nodeContext: NodeContext): Inputs = {
     val mappings = nodes.map(mapping(_, nodeContext)).flatten
     Inputs(mappings.head, mappings.tail: _*)
   }
 
-  protected def mapping(node: PersistentNode, nodeContext: Map[String, String]) = {
+  protected def mapping(node: PersistentNode, nodeContext: NodeContext) = {
     attrValues(node).map(mapping => Mapping(mapping._1, mapping._2))
   }
 
-  protected def singleTuple(node: PersistentNode, nodeContext: Map[String, String]): Mapping = {
+  protected def singleTuple(node: PersistentNode, nodeContext: NodeContext): Mapping = {
     mapping(node, nodeContext).head
   }
 
-  protected def extractInnerComputationFrom(innerComputationNode: PersistentNode, nodeContext: Map[String, String]) : InnerComputationSpecification = {
+  protected def extractInnerComputationFrom(innerComputationNode: PersistentNode, nodeContext: NodeContext) : InnerComputationSpecification = {
     assert(children(innerComputationNode).size == 1)
     val innerComputation = children(innerComputationNode).head
     unmarshal(innerComputation, nodeContext).asInstanceOf[InnerComputationSpecification]
   }
 
-  private def attr(node: PersistentNode, key: String, defaults: Map[String, String]): String = {
+  private def attr(node: PersistentNode, key: String, nodeContext: NodeContext): String = {
     try {
       this.attrValue(node, key)
     } catch {
       case ex: NoSuchElementException => {
-        defaults.get(key) match {
+        nodeContext.get(key) match {
           case None => throw ex
           case Some(v: String) => v
         }

@@ -16,6 +16,7 @@ import com.cyrusinnovation.computation.specification.Library
 import com.cyrusinnovation.computation.specification.SequentialComputationSpecification
 import com.cyrusinnovation.computation.specification.FoldingComputationSpecification
 import com.cyrusinnovation.computation.specification.SimpleComputationSpecification
+import java.util.NoSuchElementException
 
 trait PersistentNode {
   def label : String
@@ -26,11 +27,13 @@ trait PersistentTextBearingNode extends PersistentNode {
 }
 
 trait Reader {
+  private val defaultMap = collection.mutable.Map.empty[String, String]
+
   val rootNode : PersistentNode
   def unmarshal: Library = unmarshal(rootNode).asInstanceOf[Library]
 
   def unmarshal(node: PersistentNode) : SyntaxTreeNode = node.label match {
-    case "library" => Library(attrValue(node, "name"), versionMap(node))
+    case "library" => Library(attr(node, "name"), versionMap(node))
     case "version" => version(node)
     case "simpleComputation" => simpleComputationFactory(node)
     case "abortIfComputation" => abortIfComputationFactory(node)
@@ -74,14 +77,20 @@ trait Reader {
   }
 
   def version(versionNode: PersistentNode) : Version = {
-    val topLevelComputations = children(versionNode)
-    Version(attrValue(versionNode, "versionNumber"),
-            versionState(attrValue(versionNode, "state")),
-            optionalAttrValue(versionNode, "commitDate").map(timeString => dateTime(timeString)),
-            optionalAttrValue(versionNode, "lastEditDate").map(timeString => dateTime(timeString)),
-            unmarshal(topLevelComputations.head).asInstanceOf[TopLevelComputationSpecification],
-            topLevelComputations.tail.map(computationNode => unmarshal(computationNode).asInstanceOf[TopLevelComputationSpecification]):_*
-    )
+    val defaults = children(versionNode).find(_.label == "defaults").fold(Map.empty[String, String])(attrValues)
+    defaults.foreach(x => defaultMap.put(x._1,x._2))
+    try {
+      val topLevelComputations = children(versionNode).filterNot(_.label == "defaults")
+      Version(attr(versionNode, "versionNumber"),
+        versionState(attr(versionNode, "state")),
+        optionalAttrValue(versionNode, "commitDate").map(timeString => dateTime(timeString)),
+        optionalAttrValue(versionNode, "lastEditDate").map(timeString => dateTime(timeString)),
+        unmarshal(topLevelComputations.head).asInstanceOf[TopLevelComputationSpecification],
+        topLevelComputations.tail.map(computationNode => unmarshal(computationNode).asInstanceOf[TopLevelComputationSpecification]):_*
+      )
+    } finally {
+      defaultMap.clear()
+    }
   }
 
   protected def versionState(stateString: String) : VersionState = {
@@ -90,42 +99,42 @@ trait Reader {
 
   protected def simpleComputationFactory(node: PersistentNode) : SimpleComputationSpecification = {
     SimpleComputationSpecification(
-      attrValue(node, "package"),
-      attrValue(node, "name"),
-      attrValue(node, "description"),
-      attrValue(node, "changedInVersion"),
-      attrValue(node, "shouldPropagateExceptions").toBoolean,
-      attrValue(node, "computationExpression"),
+      attr(node, "package"),
+      attr(node, "name"),
+      attr(node, "description"),
+      attr(node, "changedInVersion"),
+      attr(node, "shouldPropagateExceptions").toBoolean,
+      attr(node, "computationExpression"),
       unmarshalChildren(node, "imports").asInstanceOf[Imports],
       unmarshalChildren(node, "inputs").asInstanceOf[Inputs],
-      attrValue(node, "resultKey"),
-      attrValue(node, "logger"),
-      attrValue(node, "securityConfiguration")
+      attr(node, "resultKey"),
+      attr(node, "logger"),
+      attr(node, "securityConfiguration")
     )
   }
 
   protected def abortIfComputationFactory(node: PersistentNode) : AbortIfComputationSpecification = {
     AbortIfComputationSpecification(
-      attrValue(node, "package"),
-      attrValue(node, "name"),
-      attrValue(node, "description"),
-      attrValue(node, "changedInVersion"),
-      attrValue(node, "shouldPropagateExceptions").toBoolean,
-      attrValue(node, "predicateExpression"),
+      attr(node, "package"),
+      attr(node, "name"),
+      attr(node, "description"),
+      attr(node, "changedInVersion"),
+      attr(node, "shouldPropagateExceptions").toBoolean,
+      attr(node, "predicateExpression"),
       extractInnerComputationFrom(childOfType(node, "innerComputation")),
       unmarshalChildren(node, "imports").asInstanceOf[Imports],
       unmarshalChildren(node, "inputs").asInstanceOf[Inputs],
-      attrValue(node, "logger"),
-      attrValue(node, "securityConfiguration")
+      attr(node, "logger"),
+      attr(node, "securityConfiguration")
     )
   }
 
   protected def namedComputation(node: PersistentNode) : NamedComputationSpecification = {
     NamedComputationSpecification(
-      attrValue(node, "package"),
-      attrValue(node, "name"),
-      attrValue(node, "description"),
-      attrValue(node, "changedInVersion"),
+      attr(node, "package"),
+      attr(node, "name"),
+      attr(node, "description"),
+      attr(node, "changedInVersion"),
       unmarshal(child(node)).asInstanceOf[NamableComputationSpecification]
     )
   }
@@ -146,7 +155,7 @@ trait Reader {
     MappingComputationSpecification(
       extractInnerComputationFrom(childOfType(node, "innerComputation")),
       unmarshal(childOfType(node, "inputTuple")).asInstanceOf[Mapping],
-      attrValue(node, "resultKey")
+      attr(node, "resultKey")
     )
   }
 
@@ -154,14 +163,14 @@ trait Reader {
     IterativeComputationSpecification(
       extractInnerComputationFrom(childOfType(node, "innerComputation")),
       unmarshal(childOfType(node, "inputTuple")).asInstanceOf[Mapping],
-      attrValue(node, "resultKey")
+      attr(node, "resultKey")
     )
   }
 
   protected def foldingComputation(node: PersistentNode) : FoldingComputationSpecification = {
     FoldingComputationSpecification(
       extractInnerComputationFrom(childOfType(node, "innerComputation")),
-      attrValue(node, "initialAccumulatorKey"),
+      attr(node, "initialAccumulatorKey"),
       unmarshal(childOfType(node, "inputTuple")).asInstanceOf[Mapping],
       unmarshal(childOfType(node, "accumulatorTuple")).asInstanceOf[Mapping]
     )
@@ -201,6 +210,19 @@ trait Reader {
     assert(children(innerComputationNode).size == 1)
     val innerComputation = children(innerComputationNode).head
     unmarshal(innerComputation).asInstanceOf[InnerComputationSpecification]
+  }
+
+  private def attr(node: PersistentNode, key: String): String = {
+    try {
+      this.attrValue(node, key)
+    } catch {
+      case ex: NoSuchElementException => {
+        this.defaultMap.get(key) match {
+          case None => throw ex
+          case Some(v: String) => v
+        }
+      }
+    }
   }
 
   protected def attrValue(node: PersistentNode, key: String) : String

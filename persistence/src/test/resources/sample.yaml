@@ -8,6 +8,8 @@
     versionNumber: 1.0
     state: Editable
     lastEditDate: 2014-04-07T09:30:10Z
+    defaults:
+        shouldPropagateExceptions: false
 
 - simpleComputation:
     package: test.computations
@@ -16,7 +18,8 @@
     description: Take the maximum of the values of the testValues map
     logger: computationLogger
     securityConfiguration: testSecurityConfiguration
-    shouldPropagateExceptions: false
+    #Example property which is pulled in from the defaults under version
+    #shouldPropagateExceptions: false
 
     imports:
       - scala.collection.mutable.{Map => MutableMap}

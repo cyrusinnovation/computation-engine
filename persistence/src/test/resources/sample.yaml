@@ -18,8 +18,7 @@
     description: Take the maximum of the values of the testValues map
     logger: computationLogger
     securityConfiguration: testSecurityConfiguration
-    #Example property which is pulled in from the defaults under version
-    #shouldPropagateExceptions: false
+    shouldPropagateExceptions: false
 
     imports:
       - scala.collection.mutable.{Map => MutableMap}
@@ -91,7 +90,8 @@
           description: Take the sum of two addends
           logger: computationLogger
           securityConfiguration: testSecurityConfiguration
-          shouldPropagateExceptions: false
+          #Example property which is pulled in from the defaults under version
+          #shouldPropagateExceptions: false
 
           imports: []
 

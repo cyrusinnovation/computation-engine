@@ -77,14 +77,14 @@ trait Reader {
   }
 
   def version(versionNode: PersistentNode, nodeContext: NodeContext) : Version = {
-    val defaults = children(versionNode).find(_.label == "defaults").fold(Map.empty[String, String])(attrValues)
+    val nodeContextWithDefaults = children(versionNode).find(_.label == "defaults").fold(Map.empty[String, String])(attrValues)
     val topLevelComputations = children(versionNode).filterNot(_.label == "defaults")
-    Version(attr(versionNode, "versionNumber", nodeContext),
-      versionState(attr(versionNode, "state", nodeContext)),
+    Version(attr(versionNode, "versionNumber", nodeContextWithDefaults),
+      versionState(attr(versionNode, "state", nodeContextWithDefaults)),
       optionalAttrValue(versionNode, "commitDate").map(timeString => dateTime(timeString)),
       optionalAttrValue(versionNode, "lastEditDate").map(timeString => dateTime(timeString)),
-      unmarshal(topLevelComputations.head, defaults).asInstanceOf[TopLevelComputationSpecification],
-      topLevelComputations.tail.map(computationNode => unmarshal(computationNode, defaults).asInstanceOf[TopLevelComputationSpecification]): _*
+      unmarshal(topLevelComputations.head, nodeContextWithDefaults).asInstanceOf[TopLevelComputationSpecification],
+      topLevelComputations.tail.map(computationNode => unmarshal(computationNode, nodeContextWithDefaults).asInstanceOf[TopLevelComputationSpecification]): _*
     )
   }
 
